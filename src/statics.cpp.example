@@ -1,0 +1,71 @@
+/*****************************PROPRIETARY*********************************
+ * Copyright (C) 2015 - Patel Technologies Corporation
+ * All Rights Reserved.
+ *************************************************************************
+ * Authors: Terry Meacham (terry.meacham@pateltechnologies.com)
+ *          Patel Technologies Corporation
+ *************************************************************************
+ * NOTICE:  All information contained herein is, and remains
+ * the property of Patel Technologies Incorporated and its suppliers,
+ * if any.  The intellectual and technical concepts contained
+ * herein are proprietary to Patel Technologies Incorporated
+ * and its suppliers and may be covered by U.S. and Foreign Patents,
+ * patents in process, and are protected by trade secret or copyright law.
+ * Dissemination of this information, reproduction of this material, or
+ * modification of this notice in any way, to include removal of contributor
+ * information, is strictly forbidden unless prior written permission is
+ * obtained from Patel Technologies.
+ *************************************************************************/
+
+
+jfloatArray
+Java_com_sample_getData(JNIEnv * env, jclass klass, jlong data) {
+  JNI::EnvironmentLocked j(env);
+  Data* datum = j.toType<Data>(data);
+
+  if (!datum) return 0;
+  
+  return j.floatArray(data->getFloatVector());
+}
+
+jstring
+Java_com_sample_getProperty(JNIEnv * env, jclass klass, jlong propertyset, jstring name) {
+  JNI::EnvironmentLocked j(env);
+  PropertySet* ps = j.toType<PropertySet>(propertyset);
+  if (!ps) return NULL;
+  
+  auto sname = j.string(name);
+  auto value = ps->get<std::string>(sname);
+  return j.string(value);
+}
+
+void
+onEventListener(std::shared_ptr<JNI::Listener> listener, std::string name) {
+  JNI::Environment j(listener->getEnv());
+
+  try {
+    listener->call<void>("onEvent", j.string(name));
+  }
+
+  catch (JNI::BaseException ex) {
+    std::cout << "Unable to process event..." << std::endl;
+    std::cout << ex.getMessage() << std::endl;
+  }
+}
+
+void
+Java_com_sample_addEventListener(JNIEnv * env, jclass klass, jlong propertyset, jobject listenObject) {
+  JNI::EnvironmentLocked j(env);
+  PropertySet* ps = j.toType<PropertySet>(propertyset);
+
+  if (!ps) return;
+
+  auto listener = std::make_shared<JNI::Listener>(j, ps, listenObject);
+
+  ps->onUpdate([=](const PropertyBase& pbase, const Status& state) {
+    if (!state) return;
+    std::thread(onEventListener, listener, pbase.name()).detach();     
+  });
+}
+
+
